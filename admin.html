@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Complaint Admin</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Arial,sans-serif;background:#f1f5f9;color:#0f172a}
+.w{max-width:1000px;margin:0 auto;padding:12px}.c{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 4px #0001}
+input,select,textarea{padding:9px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;width:100%}
+textarea{min-height:80px}label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
+button{padding:9px 14px;background:#2563eb;color:#fff;border:0;border-radius:8px;font:inherit;font-weight:600;cursor:pointer}
+button.g{background:#e2e8f0;color:#0f172a}.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.bar input,.bar select{width:auto;flex:1;min-width:130px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:9px;border-bottom:1px solid #e2e8f0;white-space:nowrap}tr.r{cursor:pointer}tr.r:hover{background:#f8fafc}
+.b{padding:2px 8px;border-radius:99px;font-size:12px;font-weight:600;background:#e2e8f0}
+.New{background:#fee2e2;color:#991b1b}.In{background:#fef3c7;color:#92400e}.Resolved{background:#dcfce7;color:#166534}
+.mod{position:fixed;inset:0;background:#0007;display:none;align-items:center;justify-content:center;padding:12px;z-index:9}
+.mb{background:#fff;border-radius:12px;padding:20px;max-width:560px;width:100%;max-height:92vh;overflow:auto}
+pre{white-space:pre-wrap;background:#f8fafc;padding:8px;border-radius:8px;font:13px inherit;margin:0}
+.e{color:#b91c1c;font-size:14px;margin-top:8px}.l{max-width:340px;margin:60px auto}
+</style></head><body><div class="w">
+<div id="login" class="c l"><h2>Staff Login</h2>
+<label>Username</label><input id="u"><label>Password</label><input id="p" type="password" onkeydown="if(event.key=='Enter')login()">
+<p></p><button onclick="login()" style="width:100%">Login</button><div id="le" class="e"></div></div>
+
+<div id="app" style="display:none">
+<div class="top"><div><b id="who"></b></div><div><button class="g" id="ub" onclick="show('um')">+ Add user</button> <button class="g" onclick="out()">Logout</button></div></div>
+<div class="c"><div class="bar"><input id="q" placeholder="Search name, ID, subject..." oninput="draw()">
+<select id="fs" onchange="draw()"><option value="">All status</option><option>New</option><option>In Progress</option><option>Resolved</option><option>Closed</option></select>
+<select id="fd" onchange="draw()"></select><button class="g" onclick="load()">Refresh</button></div>
+<div class="tw"><table><thead><tr><th>ID</th><th>Date</th><th>Name</th><th>Dept</th><th>Subject</th><th>Status</th></tr></thead><tbody id="tb"></tbody></table></div>
+<p id="cnt" style="color:#64748b;font-size:13px"></p></div></div>
+
+<div class="mod" id="dm"><div class="mb"><h3 id="ds" style="margin-top:0"></h3><div id="di" style="font-size:14px"></div>
+<label>Message</label><pre id="dmsg"></pre><label>Previous remarks</label><pre id="drm"></pre>
+<label>Status</label><select id="st"><option>New</option><option>In Progress</option><option>Resolved</option><option>Closed</option></select>
+<div id="dw"><label>Assign department</label><select id="dd"></select></div>
+<label>Add remark</label><textarea id="rm"></textarea><div id="de" class="e"></div><p>
+<button onclick="save()">Save</button> <button class="g" onclick="hide('dm')">Close</button></p></div></div>
+
+<div class="mod" id="um"><div class="mb"><h3 style="margin-top:0">Add staff user</h3>
+<label>Full name</label><input id="un"><label>Username</label><input id="uu"><label>Password (min 6)</label><input id="up">
+<label>Department</label><select id="ud"></select><label>Role</label><select id="ur"><option value="staff">Staff (own department only)</option><option value="admin">Admin (all departments)</option></select>
+<div id="ue" class="e"></div><p><button onclick="addU()">Create</button> <button class="g" onclick="hide('um')">Close</button></p></div></div>
+</div>
+<script>
+const API='https://script.google.com/macros/s/AKfycbzgXJCGskGFMne6rus0vJFtQtoGSbhgXooDZnUtl8dUhowebuv_zIlP4R-R72Kxn95c3A/exec';
+const DEPTS=['Accounts','Operations','Customer Service','IT','Other'];
+const $=i=>document.getElementById(i);
+let T=sessionStorage.getItem('t'),ME=JSON.parse(sessionStorage.getItem('m')||'null'),L=[],cur=null;
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const show=i=>$(i).style.display='flex',hide=i=>$(i).style.display='none';
+async function call(o){
+  o.token=T;const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(o)});
+  const j=await r.json();if(!j.ok){if(/Session expired/.test(j.error))out();throw new Error(j.error);}return j;
+}
+async function login(){
+  $('le').textContent='';
+  try{const j=await call({action:'login',user:$('u').value,pass:$('p').value});
+    T=j.token;ME=j.me;sessionStorage.setItem('t',T);sessionStorage.setItem('m',JSON.stringify(ME));start();
+  }catch(e){$('le').textContent=e.message;}
+}
+function out(){sessionStorage.clear();location.reload();}
+function start(){
+  if(!T||!ME)return;
+  $('login').style.display='none';$('app').style.display='block';
+  $('who').textContent=ME.name+' - '+(ME.role=='admin'?'Admin (all departments)':ME.dept);
+  $('ub').style.display=ME.role=='admin'?'':'none';
+  const o=DEPTS.map(d=>`<option>${d}</option>`).join('');
+  $('fd').innerHTML='<option value="">All departments</option>'+o;$('dd').innerHTML=o;$('ud').innerHTML=o;
+  $('fd').style.display=ME.role=='admin'?'':'none';$('dw').style.display=ME.role=='admin'?'':'none';
+  load();
+}
+async function load(){
+  $('cnt').textContent='Loading...';
+  try{L=(await call({action:'list'})).rows;draw();}catch(e){$('cnt').textContent=e.message;}
+}
+function draw(){
+  const q=$('q').value.toLowerCase(),s=$('fs').value,d=$('fd').value;
+  const f=L.filter(r=>(!s||r.Status==s)&&(!d||r.Department==d)&&(!q||(r.Name+r.ID+r.Subject+r.Phone).toLowerCase().includes(q)));
+  $('tb').innerHTML=f.map(r=>`<tr class="r" onclick="open_('${esc(r.ID)}')"><td>${esc(r.ID)}</td><td>${esc(r.Date)}</td><td>${esc(r.Name)}</td><td>${esc(r.Department)}</td><td>${esc(r.Subject.slice(0,40))}</td><td><span class="b ${esc(r.Status.split(' ')[0])}">${esc(r.Status)}</span></td></tr>`).join('');
+  $('cnt').textContent=f.length+' complaint(s)';
+}
+function open_(id){
+  cur=L.find(r=>r.ID==id);$('ds').textContent=cur.ID+' - '+cur.Subject;
+  $('di').innerHTML=`<b>${esc(cur.Name)}</b> | ${esc(cur.Phone)} | ${esc(cur.Email)||'no email'}<br>${esc(cur.Date)}`;
+  $('dmsg').textContent=cur.Message;$('drm').textContent=cur.Remarks||'None yet';
+  $('st').value=cur.Status;$('dd').value=cur.Department;$('rm').value='';$('de').textContent='';show('dm');
+}
+async function save(){
+  try{await call({action:'update',id:cur.ID,status:$('st').value,remark:$('rm').value,dept:$('dd').value});hide('dm');load();}
+  catch(e){$('de').textContent=e.message;}
+}
+async function addU(){
+  try{await call({action:'addUser',name:$('un').value,user:$('uu').value,pass:$('up').value,dept:$('ud').value,role:$('ur').value});
+    ['un','uu','up'].forEach(i=>$(i).value='');$('ue').textContent='';hide('um');alert('User created.');}
+  catch(e){$('ue').textContent=e.message;}
+}
+start();
+</script></body></html>
